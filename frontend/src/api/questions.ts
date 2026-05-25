@@ -11,6 +11,11 @@ export function fetchQuestions(params: {
   keyword?: string
   knowledge_point?: string
   difficulty?: string
+  quality_label?: string
+  has_answer?: boolean
+  has_solution?: boolean
+  limit?: number
+  offset?: number
 }) {
   return http.get<SimilarQuestion[]>('/questions', { params })
 }

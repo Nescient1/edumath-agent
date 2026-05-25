@@ -14,6 +14,10 @@ class SimilarQuestion(BaseModel):
     knowledge_points: list[str]
     difficulty: str
     question_type: str
+    options: list[str] = []
+    image_paths: list[str] = []
+    image_urls: list[str] = []
+    image_descriptions: list[str] = []
 
 
 class SourceSummary(BaseModel):
@@ -21,6 +25,12 @@ class SourceSummary(BaseModel):
     source: str
     content_type: str
     score: float
+
+
+class StepExplanation(BaseModel):
+    step_number: int
+    title: str
+    content: str
 
 
 class DiagnoseResponse(BaseModel):
@@ -37,3 +47,6 @@ class DiagnoseResponse(BaseModel):
     retrieved_context: list[str]
     source_summary: list[SourceSummary]
     similar_questions: list[SimilarQuestion]
+    step_by_step_explanation: list[StepExplanation] | None = None
+    general_strategy: str | None = None
+    common_pitfalls: list[str] | None = None

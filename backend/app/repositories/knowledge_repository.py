@@ -1,30 +1,71 @@
 import json
+import os
 from functools import lru_cache
 
-from app.core.config import DATA_DIR, NOTES_DIR
 from app.schemas.question import KnowledgePoint
 
 
-KNOWLEDGE_PATH = DATA_DIR / "knowledge_points.json"
+def _db_connect():
+    import psycopg
+
+    return psycopg.connect(
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+        dbname=os.getenv("POSTGRES_DB", "edumath_agent"),
+        user=os.getenv("POSTGRES_USER", "postgres"),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
+        connect_timeout=2,
+    )
 
 
 @lru_cache(maxsize=1)
 def load_knowledge_points() -> list[KnowledgePoint]:
-    if not KNOWLEDGE_PATH.exists():
+    """Load knowledge points from PostgreSQL. Falls back to empty list."""
+    try:
+        conn = _db_connect()
+    except Exception:
         return []
 
-    with KNOWLEDGE_PATH.open("r", encoding="utf-8") as file:
-        raw_points = json.load(file)
+    points: list[KnowledgePoint] = []
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id::text, name, chapter, description,
+                           COALESCE(prerequisites, '[]'::jsonb),
+                           COALESCE(common_exam_methods, '[]'::jsonb),
+                           COALESCE(keywords, '[]'::jsonb)
+                    FROM knowledge_points
+                    ORDER BY id
+                    """
+                )
+                for row in cur.fetchall():
+                    points.append(
+                        KnowledgePoint(
+                            id=row[0],
+                            name=row[1],
+                            chapter=row[2] or "",
+                            description=row[3] or "",
+                            prerequisites=_as_list(row[4]),
+                            common_exam_methods=_as_list(row[5]),
+                            keywords=_as_list(row[6]),
+                        )
+                    )
+    except Exception:
+        return []
+    return points
 
-    return [KnowledgePoint(**item) for item in raw_points]
 
-
-def load_note_documents() -> list[tuple[str, str]]:
-    documents: list[tuple[str, str]] = []
-    if not NOTES_DIR.exists():
-        return documents
-
-    for path in sorted(NOTES_DIR.glob("*.md")):
-        documents.append((path.stem, path.read_text(encoding="utf-8")))
-
-    return documents
+def _as_list(value) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if item]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return [str(item) for item in parsed if item]
+        except json.JSONDecodeError:
+            pass
+        return [value] if value.strip() else []
+    return []

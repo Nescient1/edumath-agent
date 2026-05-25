@@ -1,11 +1,17 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.pytest_tmp*/
 .venv/
 venv/
 .env
 backend/storage/*.json
+backend/uvicorn.out.log
+backend/uvicorn.err.log
 backend/storage/paddlex_cache/
+backend/storage/pix2text/
+backend/storage/ultralytics/
+backend/data/ocr_trials/**/*
 backend/data/raw/**/*
 !backend/data/raw/**/
 !backend/data/raw/**/.gitkeep
@@ -19,6 +25,8 @@ backend/data/chunks/**/*
 !backend/data/chunks/.gitkeep
 backend/data/vector_db/**/*
 !backend/data/vector_db/.gitkeep
+backend/data/llm_processed/**/*
+!backend/data/llm_processed/.gitkeep
 uploads/*
 !uploads/.gitkeep
 vector_store/

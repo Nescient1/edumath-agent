@@ -1,15 +1,17 @@
-import sys
 import math
+import sys
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.services.embedding_service import LocalHashEmbeddings, ensure_compatible_vector_store, resolve_embeddings
-from pipeline_utils import VECTOR_DB_DIR, read_json
+from app.core.config import VECTOR_STORE_DIR
+from app.services.embedding_service import ensure_compatible_vector_store, resolve_embeddings
+from pipeline_utils import read_json
 
 
 DEFAULT_QUERY = "我只会求导但不会判断单调区间"
-PASS_KEYWORDS = ["导数与函数单调性", "导数判断单调性", "单调区间", "f'(x)>0", "f'(x)<0"]
+PASS_KEYWORDS = ["导数与函数单调性", "函数的单调性", "单调区间", "f'(x)>0", "f'(x)<0"]
+VECTOR_DB_DIR = VECTOR_STORE_DIR
 LOCAL_INDEX_PATH = VECTOR_DB_DIR.parent / "local_vector_index.json"
 
 
@@ -34,7 +36,18 @@ def run_local_json_retrieval(query: str, k: int) -> list[tuple[object, float]]:
     if not entries:
         raise RuntimeError(f"Local vector index is empty or missing at {LOCAL_INDEX_PATH}.")
 
-    embeddings = LocalHashEmbeddings()
+    embeddings, embedding_config = resolve_embeddings()
+    existing_config = index.get("embedding", {})
+    comparable_keys = ["provider", "model", "dimension"]
+    existing = {key: existing_config.get(key) for key in comparable_keys}
+    current = {key: embedding_config.get(key) for key in comparable_keys}
+    if existing != current:
+        raise RuntimeError(
+            "Embedding configuration does not match the local JSON vector index. "
+            f"Existing={existing}, Current={current}. "
+            f"Delete {LOCAL_INDEX_PATH} and rerun scripts/embed_to_chroma.py."
+        )
+
     query_embedding = embeddings.embed_query(query)
     scored = []
     for entry in entries:
@@ -51,7 +64,7 @@ def run_retrieval_test(query: str = DEFAULT_QUERY, k: int = 5) -> list[tuple[obj
     if not VECTOR_DB_DIR.exists():
         raise RuntimeError(
             f"Vector DB does not exist at {VECTOR_DB_DIR} and local index does not exist at {LOCAL_INDEX_PATH}. "
-            "Run scripts/embed_to_chroma.py first."
+            "Run scripts/embed_postgres_to_chroma.py first."
         )
 
     try:

@@ -1,4 +1,5 @@
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,8 @@ sys.path.append(str(SCRIPTS_DIR))
 from build_chunks import build_chunks_from_items
 from classify_chunks import should_keep_item
 from clean_text import clean_text
-from extract_text import extract_markdown, extract_txt
+from extract_text import extract_docx_details, extract_markdown, extract_txt
+import extract_text
 import retrieval_test
 
 
@@ -25,6 +27,80 @@ def test_extract_markdown(tmp_path):
     path.write_text("# 导数\n\n## 单调性", encoding="utf-8")
 
     assert "# 导数" in extract_markdown(path)
+
+
+def _write_minimal_docx(path: Path, document_xml: str) -> None:
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            (
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                '<Default Extension="xml" ContentType="application/xml"/>'
+                '<Override PartName="/word/document.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+                "</Types>"
+            ),
+        )
+        archive.writestr("word/document.xml", document_xml)
+
+
+def test_extract_docx_preserves_omml_formula(tmp_path):
+    path = tmp_path / "formula.docx"
+    _write_minimal_docx(
+        path,
+        """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <w:body>
+    <w:p>
+      <w:r><w:t>f(x)=</w:t></w:r>
+      <m:oMath>
+        <m:sSup>
+          <m:e><m:r><m:t>x</m:t></m:r></m:e>
+          <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+        </m:sSup>
+      </m:oMath>
+      <w:r><w:t>+1</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+""",
+    )
+
+    details = extract_docx_details(path)
+
+    assert "f(x)=" in details.text
+    assert "[FORMULA: x^2]" in details.text
+    assert "+1" in details.text
+    assert details.formula_count == 1
+
+
+def test_extract_file_records_docx_formula_metadata(tmp_path, monkeypatch):
+    raw_dir = tmp_path / "raw"
+    output_dir = tmp_path / "extracted"
+    raw_dir.mkdir()
+    path = raw_dir / "formula.docx"
+    _write_minimal_docx(
+        path,
+        """<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+  <w:body>
+    <w:p><w:r><w:t>test</w:t></w:r><m:oMath><m:r><m:t>a</m:t></m:r></m:oMath></w:p>
+  </w:body>
+</w:document>
+""",
+    )
+    monkeypatch.setattr(extract_text, "RAW_DIR", raw_dir)
+    monkeypatch.setattr(extract_text, "EXTRACTED_DIR", output_dir)
+
+    record = extract_text.extract_file(path)
+
+    assert record["status"] == "success"
+    assert record["formula_count"] == 1
+    assert record["extraction_quality"] == "high"
+    assert (output_dir / "formula.txt").exists()
 
 
 def test_clean_text_preserves_math_options_and_solution_steps():

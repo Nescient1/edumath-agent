@@ -77,9 +77,8 @@ def retrieve_context(query: str, k: int = 5) -> list[str]:
 
     if vector_store is None:
         return [
-            "RAG 向量库尚未构建。请在项目根目录运行："
-            "python backend/scripts/build_vector_store.py；"
-            "或在 backend 目录运行：python scripts/build_vector_store.py"
+            "RAG 向量库尚未构建。请在 backend 目录运行："
+            "python scripts/embed_postgres_to_chroma.py"
         ]
 
     try:

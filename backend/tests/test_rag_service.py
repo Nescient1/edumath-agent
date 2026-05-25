@@ -14,7 +14,7 @@ def test_local_hash_embeddings_are_deterministic():
 def test_resolve_embeddings_falls_back_without_key():
     _, config = resolve_embeddings()
 
-    assert config["provider"] in {"local-hash", "openai-compatible"}
+    assert config["provider"] in {"local-hash", "local-bge", "openai-compatible"}
     assert "dimension" in config
 
 

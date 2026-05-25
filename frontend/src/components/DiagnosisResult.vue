@@ -23,18 +23,63 @@
 
     <div class="result-block">
       <h3>错因分析</h3>
-      <p>{{ result.diagnosis }}</p>
+      <MathTextPreview
+        class="result-math-preview"
+        :text="result.diagnosis"
+        title="错因分析"
+      />
     </div>
 
     <div class="result-block">
       <h3>个性化讲解</h3>
-      <p>{{ result.explanation }}</p>
+      <MathTextPreview
+        class="result-math-preview"
+        :text="result.explanation"
+        title="个性化讲解"
+      />
     </div>
 
     <div class="result-block">
       <h3>关键知识点</h3>
       <ul class="clean-list">
         <li v-for="concept in result.key_concepts" :key="concept">{{ concept }}</li>
+      </ul>
+    </div>
+
+    <div v-if="result.step_by_step_explanation?.length" class="result-block">
+      <h3>分步讲解</h3>
+      <div class="step-list">
+        <div
+          v-for="step in result.step_by_step_explanation"
+          :key="step.step_number"
+          class="step-card"
+        >
+          <div class="step-badge">{{ step.step_number }}</div>
+          <div class="step-body">
+            <strong>{{ step.title }}</strong>
+            <MathTextPreview
+              class="result-math-preview"
+              :text="step.content"
+              :title="step.title"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="result.general_strategy" class="result-block">
+      <h3>通用解题策略</h3>
+      <MathTextPreview
+        class="result-math-preview"
+        :text="result.general_strategy"
+        title="通用解题策略"
+      />
+    </div>
+
+    <div v-if="result.common_pitfalls?.length" class="result-block pitfalls-block">
+      <h3>易错点提醒</h3>
+      <ul class="pitfalls-list">
+        <li v-for="(pitfall, idx) in result.common_pitfalls" :key="idx">{{ pitfall }}</li>
       </ul>
     </div>
 
@@ -67,6 +112,7 @@
 import { computed } from 'vue'
 import type { DiagnoseResponse } from '../api/diagnose'
 import KnowledgeTag from './KnowledgeTag.vue'
+import MathTextPreview from './MathTextPreview.vue'
 
 const props = defineProps<{ result: DiagnoseResponse }>()
 

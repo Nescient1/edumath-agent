@@ -3,7 +3,11 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from app.services.embedding_service import LocalHashEmbeddings, ensure_compatible_vector_store, resolve_embeddings, write_embedding_config
+from app.services.embedding_service import (
+    ensure_compatible_vector_store,
+    resolve_embeddings,
+    write_embedding_config,
+)
 from pipeline_utils import CHUNKS_DIR, VECTOR_DB_DIR, ensure_pipeline_dirs, read_json, relative_to_backend, write_json
 
 
@@ -23,27 +27,24 @@ def _chunk_metadata(chunk: dict) -> dict:
 
 
 def embed_chunks_to_local_json(chunks: list[dict]) -> None:
-    embeddings = LocalHashEmbeddings()
+    embeddings, embedding_config = resolve_embeddings()
+    texts = [chunk["text"] for chunk in chunks]
+    vectors = embeddings.embed_documents(texts)
     entries = []
-    for chunk in chunks:
+    for chunk, vector in zip(chunks, vectors):
         entries.append(
             {
                 "id": chunk["chunk_id"],
                 "text": chunk["text"],
                 "metadata": _chunk_metadata(chunk),
-                "embedding": embeddings.embed_query(chunk["text"]),
+                "embedding": vector,
             }
         )
 
-    config = {
-        "provider": "local-json-hash",
-        "model": "local-hash-v1",
-        "dimension": embeddings.dimension,
-    }
     write_json(
         LOCAL_INDEX_PATH,
         {
-            "embedding": config,
+            "embedding": embedding_config,
             "entries": entries,
         },
     )
@@ -53,7 +54,7 @@ def embed_chunks_to_local_json(chunks: list[dict]) -> None:
             "input": relative_to_backend(CHUNKS_DIR / "chunks.json"),
             "output": relative_to_backend(LOCAL_INDEX_PATH),
             "chunk_count": len(chunks),
-            "embedding": config,
+            "embedding": embedding_config,
             "fallback_reason": "langchain-chroma is not installed",
         },
     )

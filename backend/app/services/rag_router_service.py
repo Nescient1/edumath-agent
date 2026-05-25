@@ -49,6 +49,8 @@ class RetrievedSource:
     knowledge_points: list[str]
     score: float
     text: str
+    quality_label: str = ""
+    review_status: str = ""
 
 
 @dataclass
@@ -123,6 +125,8 @@ def _source_from_result(doc: Any, score: float) -> RetrievedSource:
         knowledge_points=_split_knowledge_points(metadata.get("knowledge_points")),
         score=float(score),
         text=str(getattr(doc, "page_content", "")).strip(),
+        quality_label=str(metadata.get("quality_label") or ""),
+        review_status=str(metadata.get("review_status") or ""),
     )
 
 
@@ -135,6 +139,18 @@ def _knowledge_matches(source: RetrievedSource, knowledge_points: list[str] | No
         return True
     joined_text = f"{source.title}\n{source.text}"
     return any(point in joined_text for point in knowledge_points)
+
+
+def _is_usable_source(source: RetrievedSource) -> bool:
+    if source.quality_label in {"low", "pending_review"}:
+        return False
+    if source.review_status in {
+        "bad_split_cross_page",
+        "incomplete_question",
+        "exclude_from_recommendation",
+    }:
+        return False
+    return True
 
 
 def judge_retrieval_quality(
@@ -205,7 +221,11 @@ def retrieve_by_intent(
     except Exception:
         return _decision_without_source(intent, required)
 
-    all_sources = [_source_from_result(doc, score) for doc, score in raw_results]
+    all_sources = [
+        source
+        for doc, score in raw_results
+        if _is_usable_source(source := _source_from_result(doc, score))
+    ]
     matched_sources = [
         source for source in all_sources if source.content_type in required
     ][:k]

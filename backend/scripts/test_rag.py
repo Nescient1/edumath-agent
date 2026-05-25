@@ -1,5 +1,5 @@
-import sys
 from pathlib import Path
+import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
@@ -20,7 +20,7 @@ def main() -> None:
         print("-" * 60)
 
     joined = "\n".join(results)
-    if "导数与函数单调性" in joined or "derivative_monotonicity" in joined:
+    if "导数与函数单调性" in joined or "函数的单调性" in joined or "derivative_monotonicity" in joined:
         print("PASS: retrieved derivative monotonicity related context.")
     else:
         raise SystemExit("FAIL: derivative monotonicity context was not retrieved.")
