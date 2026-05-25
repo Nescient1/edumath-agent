@@ -1,48 +1,80 @@
 # EduMath Agent
 
-面向高中数学“函数与导数”专题的错题诊断型 AI 家教系统 MVP。
+面向高中数学”函数与导数”专题的 **AI 错题诊断家教系统**。
 
-当前版本已经跑通一个轻量闭环：
+沉浸式三阶段诊断体验：错题输入 → AI 动画加载 → 分栏结果展示（逐字打出讲解 + 错因分析 + 相似题推荐 + 在线练习批改）。
 
 ```text
-错题输入 → 知识点识别 → 错因诊断 → RAG 检索 → 个性化讲解 → 相似题推荐 → 学生作答 → 自动批改 → 更新学生画像
+错题输入(图片/文字) → OCR 识别 → 知识点识别 → 错因诊断 → RAG 检索 → 个性化讲解 → 相似题推荐 → 学生作答 → 自动批改 → 更新学生画像
 ```
 
-第一版 RAG 支持 OpenAI 兼容 Embedding，也支持无 key 演示用的本地 Hash Embedding fallback。正式效果推荐配置 OpenAI 兼容 Embedding；本地 fallback 只用于演示检索链路。
+## 功能亮点
+
+- **登录页**：玻璃拟态风格，左侧浮动数学公式动画，右侧登录表单
+- **首页仪表盘**：欢迎横幅 + 快捷入口卡片 + 学习概览
+- **AI 诊断舱**：三阶段沉浸流程（输入卡片 → 脉冲加载动画 → 左右分栏结果），讲解文字逐字打出（typewriter effect）
+- **专题题库**：响应式卡片网格布局，支持关键词/知识点/难度/质量筛选，点击查看完整题目详情（含选项、答案、解析）
+- **学生画像**：Echarts 雷达图展示知识点掌握度，AI 家教对话气泡给出学习建议和周计划
+- **在线练习**：选择相似题后可在线作答，AI 自动批改并给出提示
 
 ## 项目结构
 
 ```text
 edumath-agent/
-├── backend/          FastAPI 接口服务
-├── frontend/         Vue 3 + Vite + Element Plus 前端
-├── data/             知识点、题库、讲义
-├── docs/             接口与数据说明
-└── vector_store/     后续 Chroma 向量库目录
+├── backend/                 FastAPI 接口服务
+│   ├── app/
+│   │   ├── api/             路由（diagnose, questions, practice, profiles, ocr）
+│   │   ├── repositories/    数据访问层（PostgreSQL + JSON fallback）
+│   │   ├── schemas/         Pydantic 模型
+│   │   ├── services/        业务逻辑（LLM, OCR, 向量检索）
+│   │   └── prompts/         LLM Prompt 模板
+│   ├── scripts/             数据入库、向量构建、迁移脚本
+│   ├── data/                PDF 原始资料、知识库 JSON
+│   └── tests/               后端测试
+├── frontend/                Vue 3 + Vite + Element Plus 前端
+│   ├── src/
+│   │   ├── views/           页面（Login, Home, Diagnose, QuestionBank, StudentProfile）
+│   │   ├── components/      组件（diagnose/, MathTextPreview, KnowledgeTag 等）
+│   │   ├── api/             API 调用封装
+│   │   ├── router/          路由 + 登录守卫
+│   │   └── styles.css       全局样式（Morandi 色系 + 动画）
+│   └── package.json
+├── docs/                    设计文档与报告
+├── image/                   README 截图
+└── vector_store/            Chroma 向量库
 ```
 
-## 启动后端
+## 快速启动
+
+### 1. 配置环境变量
 
 ```bash
-cd edumath-agent/backend
-conda activate edumath
+cp .env.example .env
+# 编辑 .env，填入 OPENAI_API_KEY 等配置
+```
+
+### 2. 启动后端
+
+```bash
+cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-后端地址：`http://127.0.0.1:8000/api`
+- 后端地址：`http://127.0.0.1:8000/api`
+- 接口文档：`http://127.0.0.1:8000/docs`
+- 启动时自动创建 PostgreSQL 表结构（students, student_profiles, student_wrong_records）
 
-接口文档：`http://127.0.0.1:8000/docs`
-
-## 启动前端
+### 3. 启动前端
 
 ```bash
-cd edumath-agent/frontend
+cd frontend
 npm install
 npm run dev
 ```
 
-前端地址：`http://127.0.0.1:5173`
+- 前端地址：`http://127.0.0.1:5173`
+- 打开后自动跳转到登录页，输入学生 ID 即可进入系统
 
 ## 构建 RAG 向量库
 
@@ -125,16 +157,21 @@ python scripts\retrieval_test.py
 
 ## 已实现功能
 
-- `GET /api/health` 健康检查
-- `POST /api/ocr` 错题图片 OCR
-- `GET /api/questions` 题库筛选
-- `POST /api/diagnose` 错题诊断
-- `POST /api/recommend` 相似题推荐
-- `POST /api/practice/grade` 相似题作答批改
-- `GET /api/profile/{student_id}` 学生画像
-- `PUT /api/profile/{student_id}` 编辑学生画像
-- `GET /api/profile/{student_id}/records` 错题记录
-- `PATCH /api/profile/{student_id}/records/{record_id}` 更新错题复习状态
+| 模块 | 接口 | 说明 |
+|------|------|------|
+| 健康检查 | `GET /api/health` | 服务状态 |
+| OCR | `POST /api/ocr` | 错题图片识别（PaddleOCR + Pix2Text + MiMoAI Vision） |
+| 题库 | `GET /api/questions` | 题库筛选（关键词/知识点/难度/质量） |
+| 题库 | `GET /api/questions/{id}` | 题目详情（含选项、答案、解析） |
+| 诊断 | `POST /api/diagnose` | RAG + LLM 错题诊断 |
+| 推荐 | `POST /api/recommend` | 相似题推荐 |
+| 练习 | `POST /api/practice/grade` | 作答批改 |
+| 练习 | `POST /api/practice/assist` | 练习辅助（提示/答案/解析） |
+| 画像 | `GET /api/profile/{student_id}` | 学生画像 |
+| 画像 | `PUT /api/profile/{student_id}` | 编辑学生画像 |
+| 画像 | `GET /api/profile/{student_id}/records` | 错题记录 |
+| 画像 | `PATCH /api/profile/{student_id}/records/{id}` | 更新复习状态 |
+| 变式 | `POST /api/questions/generate-variants` | AI 生成变式题 |
 
 ## OCR 输入流程
 
@@ -154,96 +191,45 @@ OCR 只负责识别文字，不会直接触发大模型诊断。
 
 ## 数据内容
 
-- 11 个函数与导数知识点
-- 18 道样例题
-- `data/processed` 下的正式 RAG 数据：5 篇知识点讲义、20 道题目卡片、7 类错因诊断规则
-- `data/notes` 下保留 7 份早期简版讲义，不参与新向量库
+- 11 个函数与导数知识点（定义域、单调性、极值、导数几何意义等）
+- 1497+ 道题目（PostgreSQL 存储，含选项、答案、解析）
+- 61 份讲义 PDF（入库为 RAG 检索块）
+- 7 类错因诊断规则
 
 ## 学生画像
 
-学生画像已支持 PostgreSQL 正式存储，数据库不可用时会 fallback 到
-`backend/storage/profiles.json` 和 `backend/storage/wrong_records.json`。
+学生画像支持 PostgreSQL 持久化存储（启动时自动建表），数据库不可用时 fallback 到本地 JSON 文件。
 
-初始化或升级画像表：
+画像页功能：
+- Echarts 雷达图展示各知识点掌握度
+- AI 家教对话气泡：学习建议、优先攻克点、错题策略、周计划
+- 编辑学生基础信息（年级、目标分、当前分、教材版本、学习目标）
+- 错题记录管理：标记复习状态（未复习/复习中/已复习）+ 是否已掌握
 
-```bash
-cd edumath-agent
-conda activate edumath
-python backend/scripts/init_postgres_db.py
-python backend/scripts/migrate_profiles_to_postgres.py
-```
+## LLM 配置
 
-画像页支持编辑学生基础信息，包括年级、目标分、当前分、教材版本、当前专题和学习目标。
-错题记录支持标记 `未复习 / 复习中 / 已复习`，也可以标记是否已掌握；这些状态会写入
-PostgreSQL，并反映到后续画像统计中。
-
-## 后续升级
-
-1. 接入 LangChain 的模型调用和 JSON 输出解析。
-2. 加入更严格的数学表达式批改和变式题生成。
-3. 扩充更多函数与导数题型数据。
-# MiMoAI LLM Configuration
-
-Put your real API key only in `edumath-agent/.env`; never put it in frontend code,
-screenshots, GitHub, or `.env.example`.
+项目使用 MiMoAI（OpenAI 兼容 API）进行诊断讲解、OCR 辅助、画像建议等生成任务。Embedding 使用独立的 fallback 链。
 
 ```env
+# .env 中配置
 OPENAI_API_KEY=your_mimoai_key
 OPENAI_BASE_URL=https://token-plan-cn.xiaomimimo.com/v1
 OPENAI_MODEL=mimo-v2.5
 LLM_TIMEOUT_SECONDS=60
-LLM_MAX_TOKENS=1024
 ENABLE_LLM_DIAGNOSE=1
 ENABLE_LLM_OCR_VISION=1
-ENABLE_LLM_OCR_REWRITE=0
-ENABLE_LLM_DATA_LABELING=0
 ENABLE_LLM_PROFILE_ADVICE=1
 ```
 
-MiMoAI is used through an OpenAI-compatible API, but it is not an OpenAI model.
-The project uses MiMoAI only for chat/generation tasks: diagnosis explanation,
-low-RAG math solving fallback, optional OCR text cleanup, optional sample data
-labeling, and profile advice. Embeddings still use the existing fallback order:
+Embedding 三级 fallback：`OpenAI 兼容 → 本地 BGE → 本地 Hash`
 
-```text
-openai-compatible -> local-bge -> local-hash
-```
+## 技术栈
 
-`ENABLE_LLM_OCR_REWRITE` and `ENABLE_LLM_DATA_LABELING` default to `0` to avoid
-unexpected token usage. Data labeling is sample-only:
-
-```bash
-cd edumath-agent/backend
-python scripts\llm_label_sample.py 5
-```
-
-## Pix2Text Formula OCR
-
-Pix2Text is integrated as an optional math OCR supplement. For small screenshots
-with dense formulas, the recommended path is MiMoAI Vision first. PaddleOCR still
-returns line-level `blocks` and confidence scores; when `ENABLE_LLM_OCR_VISION=1`,
-`/api/ocr` sends the uploaded image to the OpenAI-compatible vision model and
-returns `vision_text`. The frontend prefers `corrected_text` / `vision_text` /
-`pix2text_text` when filling the question input. OCR still does not trigger
-diagnosis automatically.
-
-Configuration lives in `edumath-agent/.env`:
-
-```env
-ENABLE_LLM_OCR_VISION=1
-ENABLE_PIX2TEXT_OCR=1
-PIX2TEXT_DEVICE=
-```
-
-Small DOCX formula-image trial:
-
-```bash
-cd edumath-agent
-python backend\scripts\test_pix2text_formula_ocr.py --docx "0001_专题01_函数的定义域*.docx" --limit 20 --mode formula
-```
-
-The script extracts images from DOCX files, converts WMF/EMF formulas to PNG,
-upscales them for OCR, then writes a report to
-`backend/data/ocr_trials/pix2text_samples`. Current testing shows Pix2Text is
-useful for simple formula candidates, but extracted low-resolution WMF formulas
-still need manual review before being written into the final knowledge base.
+| 层 | 技术 |
+|---|------|
+| 前端 | Vue 3 + TypeScript + Vite + Element Plus + Echarts |
+| 后端 | FastAPI + psycopg (PostgreSQL) + ChromaDB |
+| OCR | PaddleOCR + Pix2Text + MiMoAI Vision |
+| LLM | MiMoAI (OpenAI-compatible API) |
+| 向量库 | ChromaDB + BGE-small-zh-v1.5 |
+| 数据库 | PostgreSQL (题库 + 学生画像 + 错题记录) |
